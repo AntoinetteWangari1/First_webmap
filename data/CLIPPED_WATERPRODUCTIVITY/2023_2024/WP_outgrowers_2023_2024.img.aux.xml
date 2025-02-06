@@ -1,0 +1,16 @@
+<PAMDataset>
+  <Metadata>
+    <MDI key="AREA_OR_POINT">Area</MDI>
+  </Metadata>
+  <PAMRasterBand band="1">
+    <Description>Layer_1</Description>
+    <Metadata>
+      <MDI key="LAYER_TYPE">athematic</MDI>
+      <MDI key="STATISTICS_MAXIMUM">1.8247926235199</MDI>
+      <MDI key="STATISTICS_MEAN">1.2714539928869</MDI>
+      <MDI key="STATISTICS_MINIMUM">0.085552856326103</MDI>
+      <MDI key="STATISTICS_STDDEV">0.13603535793061</MDI>
+      <MDI key="STATISTICS_VALID_PERCENT">12.09</MDI>
+    </Metadata>
+  </PAMRasterBand>
+</PAMDataset>

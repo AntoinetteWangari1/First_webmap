@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Bura Irrigation Scheme</title>
+
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.0/leaflet.css">
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+	<link rel="stylesheet" href="source/jquery-ui.min.css">
+	<link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="plugins/sidebar/L.Control.Sidebar.css">
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-easybutton@2/src/easy-button.css">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+	<link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
+	<link rel="stylesheet" href="plugins/mouseposition/L.Control.MousePosition.css">
+	<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css"/>
+	<link rel="stylesheet" href="plugins/minimap/Control.MiniMap.min.css">
+
+	
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.0/leaflet.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.0/leaflet-src.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.js"></script>
+	<script src="source/jquery-ui.min.js"></script>
+	<script src="plugins/sidebar/L.Control.Sidebar.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/leaflet-easybutton@2/src/easy-button.js"></script>
+	<script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
+	<script src="plugins/mouseposition/L.Control.MousePosition.js"></script>
+	<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.js"></script>
+	<script src="plugins/minimap/Control.MiniMap.min.js"></script>
+	<script src="plugins/ajax/leaflet.ajax.js"></script>
+	<!-- georaster layer for leaflet -->
+	<script src="https://unpkg.com/georaster"></script>
+
+	<script src="https://unpkg.com/georaster-layer-for-leaflet/dist/georaster-layer-for-leaflet.min.js"></script>
+
+	<style>
+		.bold{
+			font-weight: bold;
+			font-size: 16px;
+		}
+		.errorMsg{
+			padding:0;
+			text-align: center;
+			background-color: darksalmon;
+		}
+
+		#sections-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 20px;
+            gap: 20px;
+        }
+        .section {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            width: 500px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .section:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        .section h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #4CAF50;
+        }
+        select {
+            width: 100%;
+            padding: 8px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #fff;
+            cursor: pointer;
+        }
+        footer {
+            text-align: center;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            margin-top: 20px;
+        }
+	</style>
+
+<!-- <img src="http://localhost:8080/geoserver/wms?REQUEST=GetLegendGraphic&VERSION=1.0.0&FORMAT=image/png&WIDTH=20&HEIGHT=20&LAYER=BURA_ADEQUACY:agrocommercial_2018_2019" alt="Adequacy Legend"> -->
+
+</head>
+<body>
+
+
+	<div id="sidebar" class="col-md-3">
+		<div id="sections-container"></div>
+
+
+    <script>
+	// GeoServer base URL and layer details
+const geoServerBaseURL = "http://localhost:8080/geoserver/wms";
+
+// Years for the dropdown
+const years = [
+    "2018-2019",
+    "2019-2020",
+    "2020-2021",
+    "2021-2022",
+    "2022-2023",
+    "2023-2024"
+];
+
+// Section names
+const sections = ["Adequacy", "Water Productivity", "Uniformity", "Maize Yield"];
+
+let rasterLayers = {}; // Store raster layers for each section
+
+// Function to remove layers for a specific section
+function clearLayers(section) {
+    if (rasterLayers[section]) {
+        rasterLayers[section].forEach(layer => mymap.removeLayer(layer));
+        rasterLayers[section] = [];
+    }
+}
+
+// Function to add WMS layers for Adequacy
+function addAdequacyLayers(year) {
+    clearLayers("Adequacy");
+    const adequacyLayers = [
+        { name: "Agrocommercial Adequacy", layer: `BURA_ADEQUACY:agrocommercial_${year.replace("-", "_")}` },
+        { name: "Outgrowers Adequacy", layer: `BURA_ADEQUACY:outgrowers_${year.replace("-", "_")}` },
+        { name: "Irrigation Blocks Adequacy", layer: `BURA_ADEQUACY:irrigationblocks_${year.replace("-", "_")}` }
+    ];
+
+    adequacyLayers.forEach(({ name, layer }) => {
+        const wmsLayer = L.tileLayer.wms(geoServerBaseURL, {
+            layers: layer,
+            format: 'image/png',
+            transparent: true,
+            attribution: name
+        }).addTo(mymap);
+
+        if (!rasterLayers["Adequacy"]) rasterLayers["Adequacy"] = [];
+        rasterLayers["Adequacy"].push(wmsLayer);
+        control_Layers.addOverlay(wmsLayer, name);
+    });
+    updateLegend(adequacyLayers[0].layer);
+}
+
+// Function to add WMS layers for Water Productivity
+function addWaterProductivityLayers(year) {
+    clearLayers("Water Productivity");
+    const waterProductivityLayers = [
+        { name: "Agrocommercial Water Productivity", layer: `BURA_WATERPRODUCTIVITY:agrocommercial_${year.replace("-", "_")}` },
+        { name: "Outgrowers Water Productivity", layer: `BURA_WATERPRODUCTIVITY:outgrowers_${year.replace("-", "_")}` },
+        { name: "Irrigation Blocks Water Productivity", layer: `BURA_WATERPRODUCTIVITY:irrigationblocks_${year.replace("-", "_")}` }
+    ];
+
+    waterProductivityLayers.forEach(({ name, layer }) => {
+        const wmsLayer = L.tileLayer.wms(geoServerBaseURL, {
+            layers: layer,
+            format: 'image/png',
+            transparent: true,
+            attribution: name
+        }).addTo(mymap);
+
+        if (!rasterLayers["Water Productivity"]) rasterLayers["Water Productivity"] = [];
+        rasterLayers["Water Productivity"].push(wmsLayer);
+        control_Layers.addOverlay(wmsLayer, name);
+    });
+    updateLegend(waterProductivityLayers[0].layer);
+}
+
+// Function to add WMS layers for Uniformity
+function addUniformityLayers(year) {
+    clearLayers("Uniformity");
+    const uniformityLayers = [
+        { name: "Agrocommercial Uniformity", layer: `BURA_UNIFORMITY:agrocommercial_${year.replace("-", "_")}` },
+        { name: "Outgrowers Uniformity", layer: `BURA_UNIFORMITY:outgrowers_${year.replace("-", "_")}` },
+        { name: "Irrigation Blocks Uniformity", layer: `BURA_UNIFORMITY:irrigationblocks_${year.replace("-", "_")}` }
+    ];
+
+    uniformityLayers.forEach(({ name, layer }) => {
+        const wmsLayer = L.tileLayer.wms(geoServerBaseURL, {
+            layers: layer,
+            format: 'image/png',
+            transparent: true,
+            attribution: name
+        }).addTo(mymap);
+
+        if (!rasterLayers["Uniformity"]) rasterLayers["Uniformity"] = [];
+        rasterLayers["Uniformity"].push(wmsLayer);
+        control_Layers.addOverlay(wmsLayer, name);
+    });
+    updateLegend(uniformityLayers[0].layer);
+}
+
+// Function to add WMS layers for Maize Yield
+function addMaizeYieldLayers(year) {
+    clearLayers("Maize Yield");
+    const maizeYieldLayers = [
+        { name: "Agrocommercial Maize Yield", layer: `BURA_YIELD:agrocommercial_${year.replace("-", "_")}` },
+        { name: "Outgrowers Maize Yield", layer: `BURA_YIELD:outgrowers_${year.replace("-", "_")}` },
+        { name: "Irrigation Blocks Maize Yield", layer: `BURA_YIELD:irrigationblocks_${year.replace("-", "_")}` }
+    ];
+
+    maizeYieldLayers.forEach(({ name, layer }) => {
+        const wmsLayer = L.tileLayer.wms(geoServerBaseURL, {
+            layers: layer,
+            format: 'image/png',
+            transparent: true,
+            attribution: name
+        }).addTo(mymap);
+
+        if (!rasterLayers["Maize Yield"]) rasterLayers["Maize Yield"] = [];
+        rasterLayers["Maize Yield"].push(wmsLayer);
+        control_Layers.addOverlay(wmsLayer, name);
+    });
+    updateLegend(maizeYieldLayers[0].layer);
+}
+
+// Function to update the legend based on the selected layer
+function updateLegend(layer) {
+    const legendContainer = document.getElementById("legend-container");
+    legendContainer.innerHTML = `
+        <h3>Legend</h3>
+        <img src="${geoServerBaseURL}?REQUEST=GetLegendGraphic&VERSION=1.0.0&FORMAT=image/png&WIDTH=20&HEIGHT=20&LAYER=${layer}" alt="Legend for ${layer}" />
+    `;
+}
+
+// Add sections and dropdowns
+const container = document.getElementById("sections-container");
+
+sections.forEach(section => {
+    const sectionDiv = document.createElement("div");
+    sectionDiv.className = "section";
+
+    const heading = document.createElement("h3");
+    heading.textContent = section;
+    sectionDiv.appendChild(heading);
+
+    const dropdown = document.createElement("select");
+    dropdown.addEventListener("change", (e) => {
+        const selectedYear = e.target.value;
+        if (selectedYear) {
+            switch (section) {
+                case "Adequacy":
+                    addAdequacyLayers(selectedYear);
+                    break;
+                case "Water Productivity":
+                    addWaterProductivityLayers(selectedYear);
+                    break;
+                case "Uniformity":
+                    addUniformityLayers(selectedYear);
+                    break;
+                case "Maize Yield":
+                    addMaizeYieldLayers(selectedYear);
+                    break;
+            }
+        }
+    });
+
+    // Add year options to dropdown
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = "Select a year";
+    dropdown.appendChild(defaultOption);
+
+    years.forEach(year => {
+        const option = document.createElement("option");
+        option.value = year;
+        option.textContent = year;
+        dropdown.appendChild(option);
+    });
+
+    sectionDiv.appendChild(dropdown);
+    container.appendChild(sectionDiv);
+});
+
+// Add legend section
+const legendContainer = document.createElement("div");
+legendContainer.id = "legend-container";
+legendContainer.className = "legend-section";
+legendContainer.innerHTML = "<h3>Legend</h3>";
+container.appendChild(legendContainer);
+
+    </script>
+		
+</div>
+
+	<div id="mapdiv" class="col-md-12">
+	</div>
+
+	<script>
+
+		var baseLayers;
+		var overlays;
+		var mymap;
+
+		var raster_data;
+
+
+
+// initialize the map on the "map" div with a given center and zoom
+	mymap = L.map('mapdiv', {
+	    center: [-1.1684, 39.8899],
+	    zoom: 12,
+	    attributionControl: false,
+	    zoomControl: false
+	});
+
+	var osm= L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png?', {maxZoom:23}).addTo(mymap);
+
+	var OpenTopoMap = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+	maxZoom: 23,
+	
+});
+	var Esri_WorldImagery_minimap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 23	
+	});
+
+	var GoogleStreets = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
+		maxZoom:23,
+		subdomains:['mt0','mt1','mt2','mt3']
+	});
+
+	GoogleStreets.addTo(mymap);
+
+
+	//SIDEBAR
+
+	var sidebar = L.control.sidebar('sidebar',{
+		position: 'left'
+	});
+	mymap.addControl(sidebar);
+
+	//EASY BUTTON- Globe icon
+	L.easyButton('glyphicon-transfer', function() {
+		sidebar.toggle();
+	}).addTo(mymap);
+
+	//SCALE
+	L.control.scale({position:'bottomleft', maxWidth: '200', imperial:false}).addTo(mymap);
+
+	//ZOOMCONTROL
+	L.control.zoom({
+		position: 'topright'
+	}).addTo(mymap);
+
+	//MEASURE
+	L.control.polylineMeasure({position: 'topright'}).addTo(mymap);
+
+	//MOUSE-POSITION
+	L.control.mousePosition({position: 'bottomright'}).addTo(mymap);
+
+	//DRAW CONTROL
+	mymap.pm.addControls({  
+	  position: 'topleft',  
+	  drawCircleMarker: false,
+	  rotateMode: false,
+	}); 
+
+	//TO SHOW THE DETAILS ON THE FEATURE DRAWN USING DRAW CONTROL
+
+	mymap.on("pm:create", function(e){
+		console.log(e);
+	});
+
+	//MINIMAP
+	var miniMap = new L.Control.MiniMap(Esri_WorldImagery_minimap,{
+		position: 'bottomleft',
+		height: 150,
+		weight: 150
+	}).addTo(mymap);
+
+	//LAYER CONTROL
+	baseLayers = {
+    "Google Streets": GoogleStreets,
+    "OpenStreet Map": OpenTopoMap,
+    "Esri": Esri_WorldImagery_minimap,
+    "Open Street view": osm
+
+};
+
+	var control_Layers = L.control.layers(baseLayers,overlays).addTo(mymap);
+
+	// ADDING WMS TILE FROM GEOSERVER
+	// var irrigationBlockV3 = L.tileLayer.wms("http://localhost:8080/geoserver/wms", {
+	//     layers: 'BURA_RELAIBILITY:agrocommercial_reliability',
+	//     format: 'image/png',
+	//     transparent: true,
+	//     attribution: "Agrocommercial Reliability"
+	// }).addTo(mymap);
+
+	// control_Layers.addOverlay(irrigationBlockV3, "irrigationBlockV3");
+	
+
+
+	//LINE FEATURES
+
+	//ROAD
+	var road = L.geoJSON.ajax('data_2/line_features/road.geojson',{style:style_road}).addTo(mymap);
+
+	function style_road(json){
+		var att = json.properties;
+		var color= 'red';
+
+		return{
+			color:color,
+			weight: 2,
+			opacity: 1
+		};
+		}
+	
+
+	control_Layers.addOverlay(road, "Road");
+
+
+	//CANAL	
+	var canal = L.geoJSON.ajax('data_2/line_features/canals.geojson', {style:style_canal}).addTo(mymap);
+
+	function style_canal(json){
+		var att = json.properties;
+		var color= '#4dd0e1';
+
+		return{
+			color:color,
+			weight: 4,
+			opacity: 1
+		};
+
+	}
+
+	control_Layers.addOverlay(canal, "Canals");
+
+	//PROPOSED NEW DRAIN
+
+	var drain = L.geoJSON.ajax('data_2/line_features/proposed%20new%20drain.geojson',{style: style_drain}).addTo(mymap);
+
+	function style_drain(json){
+		var attr = json.properties;
+		var color = 'brown';
+
+		return{
+			color:color,
+			weight: 2,
+			opacity: 1
+		};
+	}
+	
+
+	control_Layers.addOverlay(drain, "Proposed_New_Drain");
+
+	//RIVER
+
+	var river = L.geoJSON.ajax('data_2/line_features/river.geojson', {style:style_river}).addTo(mymap);
+	function style_river(json){
+		var attr= json.properties;
+		var color= 'blue';
+
+		return{
+			color:color,
+			weight:5,
+			opacity:1
+		};
+	}
+
+
+	control_Layers.addOverlay(river, "River");
+
+
+	
+
+    //AGROCOMMERCIAL
+
+	// var polygon = L.geoJSON.ajax('data_2/polygon_feature/agrocommercial.geojson',{style:style_polygonfeature, onEachFeature:process_polygonfeature}).addTo(mymap);
+
+	// function style_polygonfeature(json){
+	// 	var att = json.properties;
+	// 	var color= 'white';
+	// 	var fill_color= 'white';
+	// 	var fill_opacity = 0;
+	// 	var id = att.id;
+
+	// 	return{
+	// 		color: color,
+	// 		weight: 2,
+	// 		fillColor:fill_color,
+	// 		fillOpacity: fill_opacity
+	// 	};
+
+	// }
+
+	// function process_polygonfeature(json, lyr){
+	// 	var att =json.properties;
+	// 	lyr.bindPopup("ID:"+att.id);
+
+	// }
+
+	// control_Layers.addOverlay(polygon, "AgroCommercial");
+
+
+
+
+
+
+	//BUILDING
+
+	var polygon = L.geoJSON.ajax('data_2/polygon_feature/building.geojson',{style:style_polygonfeature, onEachFeature:process_polygonfeature}).addTo(mymap);
+
+	function style_polygonfeature(json){
+		var att = json.properties;
+		var color = 'black';
+		var fill_color = 'black';
+		var fill_opacity = 1;
+		var id = att.id;
+
+		
+		return{
+			color:color,
+			fillColor: fill_color,
+			fillOpacity: fill_opacity
+		};
+
+	}
+
+	function process_polygonfeature(json, lyr){
+		var att =json.properties;
+		lyr.bindPopup("ID:"+att.id);
+
+	}
+
+	control_Layers.addOverlay(polygon, "Buildings");
+
+	//DAMS
+
+	var polygon = L.geoJSON.ajax('data_2/polygon_feature/dam.geojson',{style:style_polygonfeature, onEachFeature:process_polygonfeature}).addTo(mymap);
+
+	function style_polygonfeature(json){
+		var att = json.properties;
+		var color = 'blue';
+		var fill_color = 'blue';
+		var fill_opacity = 0;
+		var id = att.id;
+
+		
+		return{
+			color:color,
+			fillColor: fill_color,
+			fillOpacity: fill_opacity
+		};
+
+	}
+
+	function process_polygonfeature(json, lyr){
+		var att =json.properties;
+		lyr.bindPopup("ID:"+att.id);
+
+	}
+
+	control_Layers.addOverlay(polygon, "Dam");
+
+	//IRRIGATIONBLOCKS
+
+	var polygon = L.geoJSON.ajax('data_2/polygon_feature/irrigationblocks.geojson',{style:style_polygonfeature, onEachFeature:process_polygonfeature}).addTo(mymap);
+
+	function style_polygonfeature(json){
+		var att = json.properties;
+		var color = 'white';
+		var fill_color = 'white';
+		var fill_opacity = 0;
+		var id = att.id;
+
+	return{color:color, fillColor: fill_color, fillOpacity: fill_opacity};
+
+	}
+
+	function process_polygonfeature(json, lyr){
+		var att =json.properties;
+		lyr.bindPopup("ID:"+att.id);
+
+	}
+
+	control_Layers.addOverlay(polygon, "Irrigation Blocks");
+
+	//Outgrowers
+
+	var polygon = L.geoJSON.ajax('data_2/polygon_feature/outgrowers.geojson',{style:style_polygonfeature, onEachFeature:process_polygonfeature}).addTo(mymap);
+
+	function style_polygonfeature(json){
+		var att = json.properties;
+		var color= 'white';
+		var fill_color='white';
+		var fill_opacity = 0;
+		var id = att.id;
+
+		
+		return{
+			color:color,
+			fillColor: fill_color,
+			fillOpacity: fill_opacity
+		};
+
+	}
+
+	function process_polygonfeature(json, lyr){
+		var att =json.properties;
+		lyr.bindPopup("ID:"+att.id);
+
+	}
+
+	control_Layers.addOverlay(polygon, "Outgrowers");
+
+	//Parcels
+
+	var polygon = L.geoJSON.ajax('data_2/polygon_feature/parcel.geojson',{style:style_polygonfeature, onEachFeature:process_polygonfeature}).addTo(mymap);
+
+	function style_polygonfeature(json){
+		var att = json.properties;
+		var color = 'white';
+		var fill_color = 'white';
+		var fill_opacity = 0;
+		var id = att.id;
+
+		
+		return{
+			color:color,
+			fillColor: fill_color,
+			fillOpacity: fill_opacity
+		};
+
+	}
+
+	function process_polygonfeature(json, lyr){
+		var att =json.properties;
+		lyr.bindPopup("ID:"+att.id);
+
+	}
+
+	control_Layers.addOverlay(polygon, "Parcels");
+
+	//Settlement
+
+	var settlement = L.geoJSON.ajax('data_2/polygon_feature/settlement.geojson',{style:style_settlementfeature, onEachFeature:process_settlementfeature}).addTo(mymap);
+
+	function style_settlementfeature(json){
+		var att = json.properties;
+		var color = 'grey';
+		var fill_color='grey';
+		var fill_opacity = 1;
+		var id = att.id;
+
+		
+		return{
+			color:color, 
+			fillColor: fill_color, 
+			fillOpacity: fill_opacity};
+
+	}
+
+	function process_settlementfeature(json, lyr){
+		var att =json.properties;
+		lyr.bindPopup("ID:"+att.id);
+
+	}
+
+	control_Layers.addOverlay(polygon, "Settlement");
+
+
+
+	function load_rasterdata(id){
+		var path = 'http://localhost/one/First_webmap/data/'+id+'/{z}/{x}/{y}.png';
+
+
+
+		if(raster_data){
+			raster_data.remove();
+			control_Layers.removeLayer(raster_data);
+		}
+
+		raster_data = L.tileLayer(path, {tms:1, opacity:1, attribution: '', maxZoom: 22})
+
+		control_Layers.addOverlay(raster_data,"Yield" )
+	}
+
+
+		
+	</script>
+</body>
+</html>
